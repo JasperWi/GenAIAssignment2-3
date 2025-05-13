@@ -91,7 +91,7 @@ class BinaryCLT:
 
         samples = []
         for i in range(n_samples):
-            sample = np.zeros(self.d, dtype=int) * -1
+            sample = -1 * np.ones(self.d, dtype=int)
             sample[self.root] = 1 if np.random.rand() < np.exp(self.log_params[self.root][1][1]) else 0
             num_variables_set = 1
             while num_variables_set < self.d:
