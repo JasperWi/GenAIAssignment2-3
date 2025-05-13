@@ -34,7 +34,29 @@ class BinaryCLT:
         """
         # TODO: Count co-occurrences with Laplace correction
         # TODO: Store log CPTs in self.log_params
-        pass
+        self.log_params = []
+        for i in range(self.d):
+            if i == self.root:
+                # Root node has no parent 
+                counts = np.zeros((2, 1))
+                for j in range(self.n):
+                    counts[self.data[j, i]] += 1
+                # Laplace smoothing
+                counts += 2 * self.alpha
+                # Change shape to (2, 2) for consistency
+                counts = np.repeat(counts[:, np.newaxis], 2, axis=1)
+            else:
+                parent = self.tree[i]
+                # Count co-occurrences
+                counts = np.zeros((2, 2))
+                for j in range(self.n):
+                    counts[self.data[j, parent], self.data[j, i]] += 1
+                # Laplace smoothing
+                counts += self.alpha
+            # Convert to log domain
+            log_prob = np.log(counts / (4 * self.alpha + counts.sum(axis=1, keepdims=True)))
+            self.log_params.append(log_prob)
+        return self.log_params
 
     def get_tree(self):
         """
@@ -66,8 +88,22 @@ class BinaryCLT:
         """
         Generate i.i.d. samples from the CLT distribution using ancestral sampling.
         """
-        # TODO: Sample in topological order starting from root
+
         samples = []
+        for i in range(n_samples):
+            sample = np.zeros(self.d, dtype=int) * -1
+            sample[self.root] = 1 if np.random.rand() < np.exp(self.log_params[self.root][1][1]) else 0
+            num_variables_set = 1
+            while num_variables_set < self.d:
+                for j in range(self.d):
+                    parent = self.tree[j]
+                    if j != self.root and sample[j] == -1 and sample[parent] != -1:
+                        # Sample from the conditional distribution
+                        prob = np.exp(self.log_params[j][sample[parent]][1])
+                        sample[j] = 1 if np.random.rand() < prob else 0
+                        num_variables_set += 1
+            samples.append(sample)
+
         return np.array(samples)
 
 # === Utility for loading datasets ===
