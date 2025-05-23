@@ -16,49 +16,13 @@ class BinaryCLT:
         self.alpha = alpha
         self.n, self.d = data.shape
         self.root = np.random.randint(self.d) if root is None else root
+        self.mst = None
         self.tree = None
+        self.mi = None
         self.log_params = None
-        self._learn_structure()
+        self._pairwise_mi()
+        self._run_search()
         self._learn_parameters()
-
-    def _learn_structure(self):
-        """
-        Learn tree structure using the Chow-Liu algorithm:
-        1. Compute mutual information matrix
-        2. Build MST from negative mutual information
-        3. Use breadth-first order to determine parent relationships
-        """
-        mi_matrix = np.zeros((self.d, self.d))
-
-        # Compute pairwise mutual information
-        for i in range(self.d):
-            for j in range(i + 1, self.d):
-                counts = np.zeros((2, 2))
-                for k in range(self.n):
-                    xi = int(self.data[k, i])
-                    xj = int(self.data[k, j])
-                    counts[xi, xj] += 1
-                counts += self.alpha  # Laplace smoothing
-                probs = counts / counts.sum()
-
-                mi = 0.0
-                for xi in [0, 1]:
-                    for xj in [0, 1]:
-                        p_ij = probs[xi, xj]
-                        p_i = probs[xi, :].sum()
-                        p_j = probs[:, xj].sum()
-                        if p_ij > 0:
-                            mi += p_ij * np.log(p_ij / (p_i * p_j))
-
-                mi_matrix[i, j] = mi_matrix[j, i] = mi
-
-        # Build MST from negative mutual information
-        neg_mi = -mi_matrix
-        mst = minimum_spanning_tree(neg_mi).toarray()
-
-        # Use BFS to determine parents in tree
-        _, parents = breadth_first_order(mst + mst.T, directed=False, i_start=self.root, return_predecessors=True)
-        self.tree = [-1 if i == self.root else parents[i] for i in range(self.d)]
 
     def _learn_parameters(self):
         self.log_params = []
@@ -84,11 +48,57 @@ class BinaryCLT:
             self.log_params.append(log_prob)
         return self.log_params
 
+
+    def _pairwise_mi(self):
+        mi = np.zeros((self.d, self.d))
+
+        # combinations gives us all the possible combinations between two variables ([0,0], [0,1], [1,0], [1,1])
+        for i, j in itertools.combinations(range(self.d), 2):
+            # gives us a 2x2 table, which will store the the number of occurences each variable combination has
+            nij = np.zeros((2, 2), dtype=float) + self.alpha
+            # take xi and xj columns from the input data
+            xi, xj = self.data[:, i], self.data[:, j]
+
+            # counting occurences
+            nij[0, 0] += np.sum((xi == 0) & (xj == 0))
+            nij[0, 1] += np.sum((xi == 0) & (xj == 1))
+            nij[1, 0] += np.sum((xi == 1) & (xj == 0))
+            nij[1, 1] += np.sum((xi == 1) & (xj == 1))
+
+            # convertion from occurences to probabilities
+            pij = nij / (self.n + 4 * self.alpha)
+            pi  = pij.sum(axis=1, keepdims=True)
+            pj  = pij.sum(axis=0, keepdims=True)
+
+            # using the formula
+            mi_ij = (pij * (np.log(pij) - np.log(pi) - np.log(pj))).sum()
+            mi[i, j] = mi[j, i] = mi_ij
+
+        self.mi = mi
+
+        return self.mi
+    
+
+    def _run_search(self):
+        # From assignment description: Note that minimum spanning tree(-M) = maximum spanning tree(M), where M is a matrix
+        mi_neg = -self.mi
+        self.mst = minimum_spanning_tree(mi_neg)
+
+        # https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csgraph.breadth_first_order.html
+        _, parents = breadth_first_order(
+            self.mst, i_start=self.root, directed=False, return_predecessors=True
+        )
+        # there is no parent of the original node, thus -1
+        parents[self.root] = -1
+        self.tree = parents
+
+
     def get_tree(self):
         """
-        Return the list of parents for each variable in the tree.
+        Return the list of parents for each variable in the tree based on the MST
         """
         return self.tree
+    
 
     def get_log_params(self):
         """
