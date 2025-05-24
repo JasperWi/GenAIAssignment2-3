@@ -321,17 +321,13 @@ def compare_marginal_inference_and_run_time(model, marginals):
 
     #start time
     start = time.time()
-    try:
-        logp_efficient = model.log_prob(marginals, exhaustive=False)
+    logp_efficient = model.log_prob(marginals, exhaustive=False)
     #end time
-    except ValueError as e:
-        print("Efficient inference failed:", e)
-
     t_efficient = time.time() - start
 
     # Check consistency
-    match = np.allclose(logp_exhaustive, logp_efficient, rtol=1e-6, atol=1e-8)
-    return match, t_exhaustive, t_efficient
+    match = np.allclose(logp_exhaustive, logp_efficient)
+    return match, logp_exhaustive, logp_efficient,t_exhaustive, t_efficient
 
 
 # questiong 2e 6th
@@ -350,32 +346,60 @@ nltcs_marginals_data = load_csv_dataset("nltcs_marginals.csv")
 #load the CLT
 model_nltcs = BinaryCLT(nltcs_train_data, root=0, alpha=0.01)
 
-### Question 2e 1 ###
-# tree_structure = model_nltcs.get_tree()
+def append_section_to_csv(filename, section_title, data, headers=None):
+    """
+    Append a titled section to a CSV file.
 
-# #get the predecessors ###
-# predecess = predecessors(tree_structure)
-#plot the tree
-# plot_tree(tree_structure)
+    Parameters:
+        filename: path to output CSV
+        section_title: string header for the section (e.g., "Question 2e.1: Tree Structure")
+        data: list or np.array of rows
+        headers: optional list of column names
+    """
+    with open(filename, 'a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([section_title])
+        if headers:
+            writer.writerow(headers)
+        if isinstance(data, np.ndarray):
+            data = data.tolist()
+        for row in data:
+            if isinstance(row, (float, int)):
+                writer.writerow([row])
+            else:
+                writer.writerow(row)
+        writer.writerow([])  # blank row for separation
 
-## Question 2e 2 ###
-# log_cpts = model_nltcs.get_log_params()
-# print(f"Log CPTs = {log_cpts}")
 
-# ### Question 2e 3 ###
-# #Train/Test Average Log-Likelihoods
-# train_ll = compute_avg_log_likelihood(model_nltcs, nltcs_train_data, exhaustive=False)
-# test_ll = compute_avg_log_likelihood(model_nltcs, nltcs_test_data, exhaustive=False)
-# print(f"Train set avg log-likelihood: {train_ll:.4f}")
-# print(f"Test set avg log-likelihood:  {test_ll:.4f}")
+#save the results to a csv file
+output_file = "results_question_2e.csv"
 
-### Question 2e 4 ###
-# marginal_results, runtime_exhaustive, runtime_efficient = compare_marginal_inference_and_run_time(model_nltcs, nltcs_marginals_data)
+# 2e.1 — Tree structure
+tree_structure = model_nltcs.get_tree()
+tree_data = [(i, parent) for i, parent in enumerate(tree_structure)]
+append_section_to_csv(output_file, "Question 2e.1 — Tree Structure (Node, Parent)", tree_data, headers=["Node", "Parent"])
 
-### Question 2e 5 ###
-# print(f"Exhaustive vs Efficient match: {marginal_results}")
-# print(f"Exhaustive Runtime = {runtime_exhaustive}", f"Efficient Runtime = {runtime_efficient}")
+# 2e.2 — Log CPTs
+log_cpts = model_nltcs.get_log_params().reshape(model_nltcs.d, -1)
+append_section_to_csv(output_file, "Question 2e.2 — Log CPTs (Flattened)", log_cpts, headers=["P(0|0)", "P(1|0)", "P(0|1)", "P(1|1)"])
 
-## Question 2e 6 ###
-# avg_log_likelihood_sample = evaluate_sample_quality(model_nltcs, n_samples=1000)
-# print(f"Log Likelihood Sample = {avg_log_likelihood_sample}")
+# 2e.3 — Train/Test Avg Log-Likelihoods
+train_ll = compute_avg_log_likelihood(model_nltcs, nltcs_train_data, exhaustive=False)
+test_ll = compute_avg_log_likelihood(model_nltcs, nltcs_test_data, exhaustive=False)
+likelihoods_data = [["Train", train_ll], ["Test", test_ll]]
+append_section_to_csv(output_file, "Question 2e.3 — Avg Log-Likelihoods", likelihoods_data, headers=["Split", "Avg Log-Likelihood"])
+
+# 2e.4 + 2e.5 — Inference Comparison
+marginal_results, logp_exhaustive, logp_efficient, t_exh, t_eff = compare_marginal_inference_and_run_time(model_nltcs, nltcs_marginals_data)
+comparison_data = [
+    ["Match (Exhaustive vs Efficient)", marginal_results],
+    ["Exhaustive Result", logp_exhaustive],
+    ["Efficient Result", logp_efficient],
+    ["Runtime (Exhaustive)", t_exh],
+    ["Runtime (Efficient)", t_eff]
+]
+append_section_to_csv(output_file, "Question 2e.4/5 — Marginal Inference Comparison & Runtimes", comparison_data)
+
+# 2e.6 — Sampled Data Likelihood
+sample_ll = evaluate_sample_quality(model_nltcs, n_samples=1000)
+append_section_to_csv(output_file, "Question 2e.6 — Avg Log-Likelihood of 1000 Samples", [["Sampled", sample_ll]], headers=["Source", "Avg Log-Likelihood"])
