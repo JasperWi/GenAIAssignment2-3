@@ -3,8 +3,11 @@ from scipy.special import logsumexp
 import numpy as np
 import itertools
 import csv
+# imports for plotting the tree
 import networkx as nx
 import matplotlib.pyplot as plt
+#imports for measuring the run time
+import time 
 
 class BinaryCLT:
 
@@ -107,58 +110,136 @@ class BinaryCLT:
 
         return np.stack(self.log_params, axis=0)
 
-
     def log_prob(self, x, exhaustive: bool = False):
         """
-        Compute log-probability of observed/marginalized samples.
-        
+        Compute the log-probability of observed or partially observed queries.
+
         Parameters:
-            x (ndarray): N x D matrix where rows are binary vectors (0/1) with optional np.nan
-            exhaustive (bool): Whether to perform exhaustive marginalization over missing values
-        
+            x (np.ndarray): N x D matrix of queries. Each row represents a sample.
+                            Observed values are 0 or 1; missing values are np.nan.
+            exhaustive (bool): If True, perform exhaustive enumeration over missing values.
+                            If False, use efficient variable elimination.
+
         Returns:
-            log_probs (ndarray): N x 1 vector of log-probabilities
+            np.ndarray: N x 1 array of log-probabilities, one for each query.
         """
         lp = []
+
         for query in x:
             if exhaustive:
-                # Identify missing indices
+                # === Exhaustive Inference ===
+                # Identify indices of missing variables
                 missing_indices = np.where(np.isnan(query))[0]
-
-                # List to collect log-probs of all completions
                 log_probs = []
 
-                # Try all combinations of values for missing variables
+                # Iterate over all 2^k completions for k missing variables
                 for values in itertools.product([0, 1], repeat=len(missing_indices)):
                     filled = query.copy()
                     filled[missing_indices] = values
+
+                    # Compute joint log-probability for this full assignment
                     logp = 0.0
                     for i in range(self.d):
                         xi = int(filled[i])
                         parent = self.tree[i]
                         if parent == -1:
-                            logp += self.log_params[i][0, xi]  # root: marginal prob
+                            logp += self.log_params[i][0, xi]  # Root node: unconditional
                         else:
                             pi = int(filled[parent])
-                            logp += self.log_params[i][pi, xi]
+                            logp += self.log_params[i][pi, xi]  # Child node: conditional
+
                     log_probs.append(logp)
 
+                # Marginal log-probability via log-sum-exp over completions
                 lp.append(logsumexp(log_probs))
 
             else:
-                # Assume all values observed
-                logp = 0.0
+                # === Efficient Inference via Variable Elimination ===
+
+                # Identify observed and missing variable indices
+                observed_vars = np.where(~np.isnan(query))[0]
+                missing_vars = np.where(np.isnan(query))[0]
+
+                # Case 1: Fully observed query
+                if len(missing_vars) == 0:
+                    logp = 0.0
+                    for i in range(self.d):
+                        xi = int(query[i])
+                        parent = self.tree[i]
+                        if parent == -1:
+                            logp += self.log_params[i][0, xi]
+                        else:
+                            pi = int(query[parent])
+                            logp += self.log_params[i][pi, xi]
+                    lp.append(logp)
+                    continue
+
+                # Case 2: Partial observation — prepare factor graph
+                factors = {}
                 for i in range(self.d):
-                    xi = int(query[i])
                     parent = self.tree[i]
-                    if parent == -1:
-                        logp += self.log_params[i][0, xi]
+
+                    if i in observed_vars:
+                        xi = int(query[i])
+
+                        if parent == -1:
+                            # Root node — only 1 variable involved
+                            factors[i] = np.array([self.log_params[i][0, xi]])
+                        else:
+                            if parent in observed_vars:
+                                # Both child and parent observed → single entry
+                                pi = int(query[parent])
+                                factors[i] = np.array([self.log_params[i][pi, xi]])
+                            else:
+                                # Child observed, parent missing → keep full CPT row
+                                factors[i] = self.log_params[i][:, xi]
                     else:
-                        pi = int(query[parent])
-                        logp += self.log_params[i][pi, xi]
+                        if parent == -1:
+                            # Missing root variable → keep full marginal (1 row)
+                            factors[i] = self.log_params[i][0, :]
+                        else:
+                            if parent in observed_vars:
+                                # Child missing, parent observed → keep row
+                                pi = int(query[parent])
+                                factors[i] = self.log_params[i][pi, :]
+                            else:
+                                # Both parent and child missing → keep full CPT
+                                factors[i] = self.log_params[i]
+
+                # Eliminate missing variables from leaves up to root
+                elimination_order = list(range(self.d))[::-1]
+                for var in elimination_order:
+                    if var in missing_vars:
+                        parent = self.tree[var]
+
+                        if parent == -1:
+                            # Root node marginalization
+                            logp = logsumexp(factors[var])
+                            del factors[var]
+                        else:
+                            if parent in factors:
+                                # Combine with parent: log-sum-exp over child
+                                combined = factors[parent] + logsumexp(factors[var], axis=-1)
+                                factors[parent] = combined
+                                del factors[var]
+                            else:
+                                # If parent not present (likely already eliminated)
+                                logp = logsumexp(factors[var])
+                                del factors[var]
+
+                # Multiply remaining factors (observed or partially reduced)
+                logp = 0.0
+                for var in factors:
+                    val = factors[var]
+                    if isinstance(val, np.ndarray):
+                        logp += np.sum(val) if val.ndim > 0 else float(val)
+                    else:
+                        logp += float(val)
+
                 lp.append(logp)
 
-        return np.array(lp).reshape(-1, 1)
+        return np.array(lp).reshape(-1, 1)  # Return shape: (N, 1)
+
     
     def sample(self, n_samples: int):
         """
@@ -190,26 +271,139 @@ def load_csv_dataset(filename):
     return dataset
 
 
+# === Question 2e 1st ===
 def plot_tree(tree):
+    """
+    Plot a Chow-Liu tree given a parent list.
+    """
     G = nx.DiGraph()
     for child, parent in enumerate(tree):
         if parent != -1:
             G.add_edge(parent, child)
-    pos = nx.spring_layout(G, seed=42)
-    nx.draw(G, pos, with_labels=True, node_size=500, node_color="lightblue", arrows=True)
-    plt.title("Chow-Liu Tree Structure")
+
+    # Improved layout (hierarchical / shell)
+    pos = nx.shell_layout(G)
+
+    plt.figure(figsize=(10, 6))
+    nx.draw(
+        G, pos, with_labels=True, arrows=True,
+        node_size=800, node_color='lightblue',
+        edge_color='black', font_size=12, font_weight='bold'
+    )
+    plt.title("Chow-Liu Tree Structure", fontsize=14)
+    plt.axis('off')
+    plt.tight_layout()
     plt.show()
 
+# question 2e 1st
+def predecessors(tree):
+    print("Predecessors  of each node:")
+    for child, parent in enumerate(tree):
+        if parent == -1:
+            print(f"Node {child}: ROOT (no predecessor)")
+        else:
+            print(f"Node {child}: Parent = {parent}")
 
-nltcs_data = load_csv_dataset("nltcs.train.data")
+#questing 2e 3rd
+def compute_avg_log_likelihood(model, data, exhaustive=False):
+    """Compute the average log-likelihood over a dataset."""
+    log_likelihoods = model.log_prob(data, exhaustive=exhaustive)
+    return np.mean(log_likelihoods)
 
-model_nltcs = BinaryCLT(nltcs_data, root=0, alpha=0.01)
-# Get tree and CPTs
+# question 2e 4th and 5th
+def compare_marginal_inference_and_run_time(model, marginals):
+    """Compare exhaustive vs efficient inference on marginal queries and Runtime"""
+    #start the time
+    start = time.time()
+    logp_exhaustive = model.log_prob(marginals, exhaustive=True)
+    #end the time
+    t_exhaustive = time.time() - start
+
+    #start time
+    start = time.time()
+    logp_efficient = model.log_prob(marginals, exhaustive=False)
+    #end time
+    t_efficient = time.time() - start
+
+    # Check consistency
+    match = np.allclose(logp_exhaustive, logp_efficient)
+    return match, logp_exhaustive, logp_efficient,t_exhaustive, t_efficient
+
+
+# questiong 2e 6th
+def evaluate_sample_quality(model, n_samples):
+    """Evaluate log-likelihood of generated samples and compare to test set."""
+    samples = model.sample(n_samples)
+    avg_loglik_samples = compute_avg_log_likelihood(model, samples)
+    
+    return avg_loglik_samples
+
+#load the datasets
+nltcs_train_data = load_csv_dataset("nltcs_train.csv")
+nltcs_test_data = load_csv_dataset("nltcs_test.csv")
+nltcs_marginals_data = load_csv_dataset("nltcs_marginals.csv")
+
+#load the CLT
+model_nltcs = BinaryCLT(nltcs_train_data, root=0, alpha=0.01)
+
+def append_section_to_csv(filename, section_title, data, headers=None):
+    """
+    Append a titled section to a CSV file.
+
+    Parameters:
+        filename: path to output CSV
+        section_title: string header for the section (e.g., "Question 2e.1: Tree Structure")
+        data: list or np.array of rows
+        headers: optional list of column names
+    """
+    with open(filename, 'a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([section_title])
+        if headers:
+            writer.writerow(headers)
+        if isinstance(data, np.ndarray):
+            data = data.tolist()
+        for row in data:
+            if isinstance(row, (float, int)):
+                writer.writerow([row])
+            else:
+                writer.writerow(row)
+        writer.writerow([])  # blank row for separation
+
+
+#save the results to a csv file
+output_file = "results_question_2e.csv"
+
+# 2e.1 — Tree structure
 tree_structure = model_nltcs.get_tree()
-log_cpts = model_nltcs.get_log_params()
+tree_data = [(i, parent) for i, parent in enumerate(tree_structure)]
+append_section_to_csv(output_file, "Question 2e.1 — Tree Structure (Node, Parent)", tree_data, headers=["Node", "Parent"])
 
-print("\n--- Tree Structure (Parent List) ---")
-print(tree_structure)
+# 2e.2 — Log CPTs
+log_cpts = model_nltcs.get_log_params().reshape(model_nltcs.d, -1)
+append_section_to_csv(output_file, "Question 2e.2 — Log CPTs (Flattened)", log_cpts,  headers=["log P(0|0)", "log P(1|0)", "log P(0|1)", "log P(1|1)"])
 
-print("\n--- Log CPTs (shape:", log_cpts.shape, ") ---")
-print(log_cpts)
+# 2e.2 —  CPTs
+log_cpts = model_nltcs.get_log_params().reshape(model_nltcs.d, -1)
+append_section_to_csv(output_file, "Question 2e.2 — CPTs (Flattened)", np.exp(log_cpts),  headers=["P(0|0)", "P(1|0)", "P(0|1)", "P(1|1)"])
+
+# 2e.3 — Train/Test Avg Log-Likelihoods
+train_ll = compute_avg_log_likelihood(model_nltcs, nltcs_train_data, exhaustive=False)
+test_ll = compute_avg_log_likelihood(model_nltcs, nltcs_test_data, exhaustive=False)
+likelihoods_data = [["Train", train_ll], ["Test", test_ll]]
+append_section_to_csv(output_file, "Question 2e.3 — Avg Log-Likelihoods", likelihoods_data, headers=["Split", "Avg Log-Likelihood"])
+
+# 2e.4 + 2e.5 — Inference Comparison
+marginal_results, logp_exhaustive, logp_efficient, t_exh, t_eff = compare_marginal_inference_and_run_time(model_nltcs, nltcs_marginals_data)
+comparison_data = [
+    ["Match (Exhaustive vs Efficient)", marginal_results],
+    ["Exhaustive Result", logp_exhaustive],
+    ["Efficient Result", logp_efficient],
+    ["Runtime (Exhaustive)", t_exh],
+    ["Runtime (Efficient)", t_eff]
+]
+append_section_to_csv(output_file, "Question 2e.4/5 — Marginal Inference Comparison & Runtimes", comparison_data)
+
+# 2e.6 — Sampled Data Likelihood
+sample_ll = evaluate_sample_quality(model_nltcs, n_samples=1000)
+append_section_to_csv(output_file, "Question 2e.6 — Avg Log-Likelihood of 1000 Samples", [["Sampled", sample_ll]], headers=["Source", "Avg Log-Likelihood"])
