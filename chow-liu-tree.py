@@ -20,9 +20,6 @@ class BinaryCLT:
         self.tree = None
         self.mi = None
         self.log_params = None
-        self._pairwise_mi()
-        self._run_search()
-        self._learn_parameters()
 
     def _learn_parameters(self):
         self.log_params = []
@@ -75,8 +72,6 @@ class BinaryCLT:
             mi[i, j] = mi[j, i] = mi_ij
 
         self.mi = mi
-
-        return self.mi
     
 
     def _run_search(self):
@@ -97,6 +92,9 @@ class BinaryCLT:
         """
         Return the list of parents for each variable in the tree based on the MST
         """
+        self._pairwise_mi()
+        self._run_search()
+
         return self.tree
     
 
@@ -105,6 +103,8 @@ class BinaryCLT:
         Efficiently return the learned log CPTs as a (d, 2, 2) NumPy array.
         Assumes _learn_parameters has already populated self.log_params.
         """
+        self._learn_parameters()
+
         return np.stack(self.log_params, axis=0)
 
 
