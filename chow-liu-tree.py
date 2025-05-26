@@ -381,7 +381,11 @@ append_section_to_csv(output_file, "Question 2e.1 — Tree Structure (Node, Pare
 
 # 2e.2 — Log CPTs
 log_cpts = model_nltcs.get_log_params().reshape(model_nltcs.d, -1)
-append_section_to_csv(output_file, "Question 2e.2 — Log CPTs (Flattened)", log_cpts, headers=["P(0|0)", "P(1|0)", "P(0|1)", "P(1|1)"])
+append_section_to_csv(output_file, "Question 2e.2 — Log CPTs (Flattened)", log_cpts,  headers=["log P(0|0)", "log P(1|0)", "log P(0|1)", "log P(1|1)"])
+
+# 2e.2 —  CPTs
+log_cpts = model_nltcs.get_log_params().reshape(model_nltcs.d, -1)
+append_section_to_csv(output_file, "Question 2e.2 — CPTs (Flattened)", np.exp(log_cpts),  headers=["P(0|0)", "P(1|0)", "P(0|1)", "P(1|1)"])
 
 # 2e.3 — Train/Test Avg Log-Likelihoods
 train_ll = compute_avg_log_likelihood(model_nltcs, nltcs_train_data, exhaustive=False)
