@@ -267,7 +267,7 @@ class BinaryCLT:
 def load_csv_dataset(filename):
     with open(filename, "r") as file:
         reader = csv.reader(file, delimiter=',')
-        dataset = np.array(list(reader)).astype(np.float_)
+        dataset = np.array(list(reader)).astype(np.float64)
     return dataset
 
 
@@ -311,7 +311,7 @@ def compute_avg_log_likelihood(model, data, exhaustive=False):
     return np.mean(log_likelihoods)
 
 # question 2e 4th and 5th
-def compare_marginal_inference_and_run_time(model, marginals):
+def compare_marginal_inference_and_run_time(model, marginals, accidents):
     """Compare exhaustive vs efficient inference on marginal queries and Runtime"""
     #start the time
     start = time.time()
@@ -325,9 +325,13 @@ def compare_marginal_inference_and_run_time(model, marginals):
     #end time
     t_efficient = time.time() - start
 
+    #accidents
+    logp_accidents_exhaustive = model.log_prob(accidents, exhaustive=True)
+    logp_accidents_efficient = model.log_prob(accidents, exhaustive=False)
+
     # Check consistency
     match = np.allclose(logp_exhaustive, logp_efficient)
-    return match, logp_exhaustive, logp_efficient,t_exhaustive, t_efficient
+    return match, logp_exhaustive, logp_efficient, logp_accidents_exhaustive, logp_accidents_efficient, t_exhaustive, t_efficient
 
 
 # questiong 2e 6th
@@ -342,6 +346,7 @@ def evaluate_sample_quality(model, n_samples):
 nltcs_train_data = load_csv_dataset("nltcs_train.csv")
 nltcs_test_data = load_csv_dataset("nltcs_test.csv")
 nltcs_marginals_data = load_csv_dataset("nltcs_marginals.csv")
+accidents_data = load_csv_dataset("accidents.train.csv")
 
 #load the CLT
 model_nltcs = BinaryCLT(nltcs_train_data, root=0, alpha=0.01)
@@ -394,13 +399,15 @@ likelihoods_data = [["Train", train_ll], ["Test", test_ll]]
 append_section_to_csv(output_file, "Question 2e.3 — Avg Log-Likelihoods", likelihoods_data, headers=["Split", "Avg Log-Likelihood"])
 
 # 2e.4 + 2e.5 — Inference Comparison
-marginal_results, logp_exhaustive, logp_efficient, t_exh, t_eff = compare_marginal_inference_and_run_time(model_nltcs, nltcs_marginals_data)
+marginal_results, logp_exhaustive, logp_efficient, logp_accidents_exhaustive, logp_accidents_efficient, t_exh, t_eff = compare_marginal_inference_and_run_time(model_nltcs, nltcs_marginals_data, accidents_data)
 comparison_data = [
     ["Match (Exhaustive vs Efficient)", marginal_results],
     ["Exhaustive Result", logp_exhaustive],
     ["Efficient Result", logp_efficient],
     ["Runtime (Exhaustive)", t_exh],
-    ["Runtime (Efficient)", t_eff]
+    ["Runtime (Efficient)", t_eff],
+    ["Accidents Exhaustive Result", logp_accidents_exhaustive],
+    ["Accidents Efficient Result", logp_accidents_efficient]
 ]
 append_section_to_csv(output_file, "Question 2e.4/5 — Marginal Inference Comparison & Runtimes", comparison_data)
 
