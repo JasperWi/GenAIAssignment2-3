@@ -1,4 +1,4 @@
-"Question 2e.1 — Tree Structure (Node, Parent)"
+"Question 2e.1 ï¿½ Tree Structure (Node, Parent)"
 Node,Parent
 0,-1
 1,6
@@ -17,7 +17,7 @@ Node,Parent
 14,12
 15,12
 
-Question 2e.2 — Log CPTs (Flattened)
+Question 2e.2 ï¿½ Log CPTs (Flattened)
 log P(0|0),log P(1|0),log P(0|1),log P(1|1)
 -0.1580113980093997,-1.92305370788196,-0.1580113980093997,-1.92305370788196
 -0.08514189445521118,-2.5057049856508664,-0.8778595415068993,-0.5372922762791947
@@ -36,7 +36,7 @@ log P(0|0),log P(1|0),log P(0|1),log P(1|1)
 -0.15478766309613684,-1.942096746696716,-1.4799833706727001,-0.25830642468673637
 -0.012778742331860648,-4.36635481112737,-0.6124378637010235,-0.7809469417375229
 
-Question 2e.2 — CPTs (Flattened)
+Question 2e.2 ï¿½ CPTs (Flattened)
 P(0|0),P(1|0),P(0|1),P(1|1)
 0.8538400498361045,0.14615995016389552,0.8538400498361045,0.14615995016389552
 0.9183819618475,0.08161803815249995,0.4156716881429138,0.5843283118570862
@@ -55,12 +55,12 @@ P(0|0),P(1|0),P(0|1),P(1|1)
 0.8565970453387671,0.1434029546612328,0.22764147387691366,0.7723585261230863
 0.9873025591173716,0.012697440882628318,0.5420278670184444,0.4579721329815556
 
-Question 2e.3 — Avg Log-Likelihoods
+Question 2e.3 ï¿½ Avg Log-Likelihoods
 Split,Avg Log-Likelihood
 Train,-6.760055964498731
 Test,-6.7590743429784395
 
-Question 2e.4/5 — Marginal Inference Comparison & Runtimes
+Question 2e.4/5 ï¿½ Marginal Inference Comparison & Runtimes
 Match (Exhaustive vs Efficient),False
 Exhaustive Result,"[[-0.99375142]
  [-2.75673257]
@@ -76,10 +76,10 @@ Efficient Result,"[[ -5.18454709]
  [ -3.98232853]
  [ -3.83814796]
  [ -5.01788441]]"
-Runtime (Exhaustive),307.10697293281555
-Runtime (Efficient),3.6259944438934326
+Runtime (Exhaustive),323.4913647174835
+Runtime (Efficient),4.006591081619263
 
-Question 2e.6 — Avg Log-Likelihood of 1000 Samples
+Question 2e.6 ï¿½ Avg Log-Likelihood of 1000 Samples
 Source,Avg Log-Likelihood
-Sampled,-6.782958202885775
+Sampled,-6.7120847356255835
 

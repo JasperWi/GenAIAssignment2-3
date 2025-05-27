@@ -137,7 +137,7 @@ class BinaryCLT:
                     filled = query.copy()
                     filled[missing_indices] = values
 
-                    # Compute joint log-probability for this full assignment
+                    # Compute joint log-probability
                     logp = 0.0
                     for i in range(self.d):
                         xi = int(filled[i])
@@ -160,7 +160,7 @@ class BinaryCLT:
                 observed_vars = np.where(~np.isnan(query))[0]
                 missing_vars = np.where(np.isnan(query))[0]
 
-                # Case 1: Fully observed query
+                # Case 1: Fully observed query (so nan values)
                 if len(missing_vars) == 0:
                     logp = 0.0
                     for i in range(self.d):
@@ -174,7 +174,7 @@ class BinaryCLT:
                     lp.append(logp)
                     continue
 
-                # Case 2: Partial observation — prepare factor graph
+                # Case 2: Partial observation (nan values are present)
                 factors = {}
                 for i in range(self.d):
                     parent = self.tree[i]
@@ -183,7 +183,7 @@ class BinaryCLT:
                         xi = int(query[i])
 
                         if parent == -1:
-                            # Root node — only 1 variable involved
+                            # Root node — 
                             factors[i] = np.array([self.log_params[i][0, xi]])
                         else:
                             if parent in observed_vars:
@@ -207,25 +207,19 @@ class BinaryCLT:
                                 factors[i] = self.log_params[i]
 
                 # Eliminate missing variables from leaves up to root
-                elimination_order = list(range(self.d))[::-1]
+                elimination_order = get_post_order(self.tree, self.root)
                 for var in elimination_order:
                     if var in missing_vars:
                         parent = self.tree[var]
 
                         if parent == -1:
                             # Root node marginalization
-                            logp = logsumexp(factors[var])
                             del factors[var]
                         else:
                             if parent in factors:
-                                # Combine with parent: log-sum-exp over child
                                 combined = factors[parent] + logsumexp(factors[var], axis=-1)
                                 factors[parent] = combined
-                                del factors[var]
-                            else:
-                                # If parent not present (likely already eliminated)
-                                logp = logsumexp(factors[var])
-                                del factors[var]
+                            del factors[var]
 
                 # Multiply remaining factors (observed or partially reduced)
                 logp = 0.0
@@ -238,8 +232,8 @@ class BinaryCLT:
 
                 lp.append(logp)
 
-        return np.array(lp).reshape(-1, 1)  # Return shape: (N, 1)
-
+        lp = np.array(lp).reshape(-1, 1) # Return shape: (N, 1)
+        return lp
     
     def sample(self, n_samples: int):
         """
@@ -269,6 +263,27 @@ def load_csv_dataset(filename):
         reader = csv.reader(file, delimiter=',')
         dataset = np.array(list(reader)).astype(np.float_)
     return dataset
+
+# === Required for the log_prob method === 
+def get_post_order(tree, root):
+    """
+    Return post-order traversal of the tree rooted at `root`
+    """
+    children = {i: [] for i in range(len(tree))}
+    for child, parent in enumerate(tree):
+        if parent != -1:
+            children[parent].append(child)
+
+    order = []
+    visited = set()
+
+    def dfs(node):
+        for child in children[node]:
+            dfs(child)
+        order.append(node)
+
+    dfs(root)
+    return order
 
 
 # === Question 2e 1st ===
