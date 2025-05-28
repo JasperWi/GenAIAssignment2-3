@@ -345,10 +345,10 @@ def compare_marginal_inference_and_run_time(model, marginals, accidents):
 
     #accidents
     start = time.time()
-    logp_accidents_efficient = model.log_prob(accidents, exhaustive=False)
-    accidents_efficient = time.time() - start
+    logp_accidents_exhaustive = model.log_prob(accidents, exhaustive=True)
+    accidents_exhaustive = time.time() - start
 
-    return match_nltcs, logp_exhaustive, logp_efficient, logp_accidents_efficient, t_exhaustive, t_efficient, accidents_efficient
+    return match_nltcs, logp_exhaustive, logp_efficient, logp_accidents_exhaustive, t_exhaustive, t_efficient, accidents_exhaustive
 
 
 # questiong 2e 6th
@@ -416,14 +416,14 @@ likelihoods_data = [["Train", train_ll], ["Test", test_ll]]
 append_section_to_csv(output_file, "Question 2e.3 — Avg Log-Likelihoods", likelihoods_data, headers=["Split", "Avg Log-Likelihood"])
 
 # 2e.4 + 2e.5 — Inference Comparison
-marginal_results, logp_exhaustive, logp_efficient, logp_accidents_efficient, t_exh, t_eff, accidents_runtime = compare_marginal_inference_and_run_time(model_nltcs, nltcs_marginals_data, accidents_data)
+marginal_results, logp_exhaustive, logp_efficient, logp_accidents_exhaustive, t_exh, t_eff, accidents_runtime = compare_marginal_inference_and_run_time(model_nltcs, nltcs_marginals_data, accidents_data)
 comparison_data = [
     ["Match (Exhaustive vs Efficient)", marginal_results],
     ["Exhaustive Result", logp_exhaustive],
     ["Efficient Result", logp_efficient],
     ["Runtime (Exhaustive)", t_exh],
     ["Runtime (Efficient)", t_eff],
-    ["Accidents Efficient Result", logp_accidents_efficient],
+    ["Accidents Exhaustive Result", logp_accidents_exhaustive],
     ["Accidents Run Time", accidents_runtime],
 ]
 append_section_to_csv(output_file, "Question 2e.4/5 — Marginal Inference Comparison & Runtimes", comparison_data)

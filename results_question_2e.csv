@@ -80,14 +80,14 @@ Efficient Result,"[[ -5.18454709]
 Runtime (Exhaustive),301.4564607143402
 Runtime (Efficient),4.006591081619263
 
-Accidents Efficient Result,"[[-13.50197138]
+Accidents Exhaustive Result,"[[-13.50197138]
  [-18.93696549]
  [-10.73137011]
  ...
  [ -9.53340695]
  [ -9.21050172]
  [ -6.16189469]]"
-Accidents Run Time,0.15900087356567383
+Accidents Run Time,1.0193431377410889
 
 Question 2e.6 � Avg Log-Likelihood of 1000 Samples
 Source,Avg Log-Likelihood
