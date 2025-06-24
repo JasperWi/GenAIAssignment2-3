@@ -896,6 +896,7 @@ plt.grid(True)
 plt.show()
 #%%
 with torch.no_grad():
+    std = torch.exp(0.5 * logvar_z)
     # Final z sample
     z_opt = mu_z + torch.exp(0.5 * logvar_z) * torch.randn_like(std)
     recon_mu, _ = gaussian.decode(z_opt)
